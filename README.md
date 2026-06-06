@@ -101,7 +101,7 @@ Restart the dev server after changing it. One password unlocks **all** protected
 
 ### Viewing protected pages
 
-Before unlocking, protected pages are hidden from the sidebar, search, graph, and Markdown endpoints. If someone guesses the URL, they can open the page shell directly — but still **cannot read the body** without the password, for example:
+Before unlocking, protected pages stay in the sidebar but their bodies are gated; they are hidden from search, graph, and Markdown endpoints. If someone guesses the URL, they can open the page shell directly — but still **cannot read the body** without the password, for example:
 
 ```text
 /permanent/202606061435
@@ -115,7 +115,7 @@ After a correct password, the browser stores an HttpOnly cookie for about 30 day
 
 **What this scheme is good for**
 
-- Keeping protected note bodies out of casual browsing, search, and Markdown export
+- Keeping protected note bodies out of casual reading, search, and Markdown export (sidebar links remain visible)
 - A simple gate when the site is public but a few pages should need a shared secret
 - Pairing with a **private repository** so `content/` is not world-readable on GitHub
 
