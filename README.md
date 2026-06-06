@@ -1,5 +1,7 @@
 # VaultPress
 
+![Preview](./vaultpress.png)
+
 Publish an Obsidian vault as a documentation site with VaultPress.
 
 ## What is VaultPress?
@@ -30,12 +32,12 @@ Obsidian vault → pnpm generate → content/ → pnpm dev → site
 
 ## Commands
 
-| Command | Description |
-| --- | --- |
+| Command         | Description                                        |
+| --------------- | -------------------------------------------------- |
 | `pnpm obsidian` | Open the vault configured in `OBSIDIAN_VAULT_PATH` |
-| `pnpm generate` | Generate site content from the vault |
-| `pnpm dev` | Start the development server |
-| `pnpm build` | Build for production |
+| `pnpm generate` | Generate site content from the vault               |
+| `pnpm dev`      | Start the development server                       |
+| `pnpm build`    | Build for production                               |
 
 ## Directory layout
 
