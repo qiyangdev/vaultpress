@@ -1,0 +1,9 @@
+---
+title: "Graph View"
+description: Interactive graph of site pages and wikilink connections
+---
+
+import { GraphView } from "@/components/graph-view";
+import { buildGraph } from "@/lib/build-graph";
+
+<GraphView graph={buildGraph()} />

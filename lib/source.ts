@@ -10,6 +10,42 @@ export const source = loader({
   plugins: [lucideIconsPlugin()],
 });
 
+function toSlugSegments(slug?: string | string[]) {
+  if (!slug) return undefined;
+  return (Array.isArray(slug) ? slug : slug.split('/')).filter((segment) => segment.length > 0);
+}
+
+function encodeSlugSegment(segment: string) {
+  try {
+    return encodeURI(decodeURIComponent(segment));
+  } catch {
+    return encodeURI(segment);
+  }
+}
+
+/** Resolve pages for catch-all routes; handles encoded/decoded non-ASCII slugs. */
+export function resolvePage(slug?: string | string[]) {
+  const segments = toSlugSegments(slug);
+  if (!segments || segments.length === 0) return source.getPage([]);
+
+  const candidates = [
+    segments,
+    segments.map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    }),
+    segments.map(encodeSlugSegment),
+  ];
+
+  for (const candidate of candidates) {
+    const page = source.getPage(candidate);
+    if (page) return page;
+  }
+}
+
 export function getPageImage(page: (typeof source)['$inferPage']) {
   const segments = [...page.slugs, 'image.webp'];
 

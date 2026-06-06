@@ -1,14 +1,17 @@
-import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
-import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
+import { defineConfig, defineDocs } from "fumadocs-mdx/config";
+import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
+import { remarkMdxMermaid } from "fumadocs-core/mdx-plugins";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
+import { remarkWikilinks } from "./lib/remark-wikilinks";
 
-// You can customize Zod schemas for frontmatter and `meta.json` here
-// see https://fumadocs.dev/docs/mdx/collections
 export const docs = defineDocs({
-  dir: 'content/docs',
+  dir: "content",
   docs: {
     schema: pageSchema,
     postprocess: {
       includeProcessedMarkdown: true,
+      extractLinkReferences: true,
     },
   },
   meta: {
@@ -18,6 +21,7 @@ export const docs = defineDocs({
 
 export default defineConfig({
   mdxOptions: {
-    // MDX options
+    remarkPlugins: [remarkWikilinks, remarkMdxMermaid, remarkMath],
+    rehypePlugins: (v) => [rehypeKatex, ...v],
   },
 });

@@ -1,9 +1,15 @@
-import defaultMdxComponents from 'fumadocs-ui/mdx';
-import type { MDXComponents } from 'mdx/types';
+import { ImageZoom } from "fumadocs-ui/components/image-zoom";
+import defaultMdxComponents from "fumadocs-ui/mdx";
+import * as ObsidianComponents from "fumadocs-obsidian/ui";
+import { Mermaid } from "@/components/mermaid";
+import type { MDXComponents } from "mdx/types";
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    img: (props) => <ImageZoom {...(props as any)} />,
+    Mermaid,
+    ...ObsidianComponents,
     ...components,
   } satisfies MDXComponents;
 }

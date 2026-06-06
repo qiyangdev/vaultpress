@@ -1,35 +1,65 @@
 {
   "name": "vaultpress",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Publish an Obsidian vault as a documentation site with Next.js and Fumadocs",
+  "license": "MIT",
+  "author": "Qiyang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qiyangdev/vaultpress.git"
+  },
+  "bugs": {
+    "url": "https://github.com/qiyangdev/vaultpress/issues"
+  },
+  "homepage": "https://github.com/qiyangdev/vaultpress#readme",
+  "keywords": [
+    "obsidian",
+    "fumadocs",
+    "nextjs",
+    "documentation",
+    "markdown",
+    "mdx",
+    "wiki",
+    "knowledge-graph"
+  ],
   "scripts": {
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "generate": "node --env-file=.env scripts/generate.ts",
+    "obsidian": "node --env-file=.env scripts/open-obsidian.ts"
   },
   "dependencies": {
+    "@takumi-rs/image-response": "^1.7.0",
+    "beautiful-mermaid": "^1.1.3",
+    "d3-force": "^3.0.0",
     "fumadocs-core": "16.9.3",
     "fumadocs-mdx": "15.0.11",
+    "fumadocs-obsidian": "^0.1.0",
     "fumadocs-ui": "16.9.3",
+    "katex": "^0.17.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "tailwind-merge": "^3.6.0",
-    "@takumi-rs/image-response": "^1.7.0"
+    "react-force-graph-2d": "^1.29.1",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
+    "@types/d3-force": "^3.0.10",
     "@types/mdx": "^2.0.13",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
+    "oxlint": "^1.68.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3",
-    "oxlint": "^1.68.0"
+    "typescript": "^6.0.3"
   }
 }

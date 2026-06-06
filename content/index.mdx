@@ -1,6 +1,7 @@
-# VaultPress
-
-Publish an Obsidian vault as a documentation site with VaultPress.
+---
+title: Introduction
+description: Publish an Obsidian vault as a documentation site with VaultPress
+---
 
 ## What is VaultPress?
 
@@ -26,7 +27,7 @@ Obsidian vault → pnpm generate → content/ → pnpm dev → site
 
 1. Edit notes in your Obsidian vault
 2. Run `pnpm generate` to convert Markdown into MDX under `content/`
-3. Run `pnpm dev` to preview locally at http://localhost:3000
+3. Run `pnpm dev` to preview locally
 
 ## Commands
 
@@ -61,18 +62,10 @@ Frontmatter handling:
 
 ## Graph View
 
-The [Graph View](/graph) page shows an interactive graph of site pages and wikilink connections. Each node is a page; edges are internal links. Click a node to open that page.
+The [[Graph View]] page shows an interactive graph of site pages and wikilink connections. Each node is a page; edges are internal links. Click a node to open that page.
 
 ## Stack
 
 - **Framework**: Next.js + Fumadocs
 - **Content**: Obsidian Markdown → MDX ([fumadocs-obsidian](https://fumadocs.dev/docs/integrations/obsidian))
 - **Features**: Full-text search, knowledge graph, Mermaid, math
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-## License
-
-[MIT](./LICENSE)
