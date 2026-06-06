@@ -59,7 +59,7 @@ Excluded from generation:
 Frontmatter handling:
 
 - `title` — Uses the note's `title` field, then the first `#` heading, then the filename
-- `description` — Uses the note's `description` field, then the first body paragraph; omitted if empty
+- `description` — Uses the note's `description` field only; omitted if empty
 
 ## Graph View
 

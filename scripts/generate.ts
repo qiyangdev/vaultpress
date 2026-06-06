@@ -18,16 +18,8 @@ function resolveTitle(file: ParsedContentFile, fallback: string) {
   return fallback;
 }
 
-function resolveDescription(file: ParsedContentFile, value: unknown) {
+function resolveDescription(value: unknown) {
   if (typeof value === "string" && value.trim()) return value.trim();
-
-  const paragraph = file.content
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0 && !line.startsWith("#"));
-
-  if (paragraph) return paragraph;
-
   return undefined;
 }
 
@@ -62,7 +54,7 @@ await fromVault({
       if (file.format !== "content") return frontmatter;
 
       const title = resolveTitle(file, String(frontmatter.title ?? ""));
-      const description = resolveDescription(file, frontmatter.description);
+      const description = resolveDescription(frontmatter.description);
       const result: Record<string, unknown> = { ...frontmatter, title };
 
       if (description) result.description = description;
