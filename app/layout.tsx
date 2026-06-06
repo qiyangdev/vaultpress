@@ -2,6 +2,7 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 import { i18nProvider } from "fumadocs-ui/i18n";
 import { getSiteLanguage } from "@/lib/locale";
 import "./global.css";
+import "./canvas-flow.css";
 import "katex/dist/katex.css";
 import { Inter } from "next/font/google";
 

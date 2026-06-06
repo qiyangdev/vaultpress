@@ -1,17 +1,27 @@
-import { checkbox } from "@inquirer/prompts";
-import { fromVault, type ParsedContentFile } from "fumadocs-obsidian";
+import {
+  convertVaultFiles,
+  readVaultFiles,
+  type OutputFile,
+  type ParsedContentFile,
+} from "fumadocs-obsidian";
+import { generateCanvasPages, syncCanvasFromVault } from "./generate-canvas-pages.ts";
+import {
+  promptIncludeSelection,
+  type VaultEntry,
+} from "./generate-select-ui.ts";
+import {
+  createStepProgress,
+  GenerateProgress,
+  runWithGenerateUi,
+} from "./progress.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 const contentDir = "content";
+const publicDir = "public";
 const preservedFiles = new Set(["index.mdx", "graph.mdx"]);
 const hiddenEntries = new Set([".obsidian", "templates"]);
 const defaultExcludePatterns = ["!.obsidian/**", "!templates/**"];
-
-type VaultEntry = {
-  name: string;
-  isDirectory: boolean;
-};
 
 function resolveTitle(file: ParsedContentFile, fallback: string) {
   const frontmatter = file.frontmatter as Record<string, unknown> | undefined;
@@ -31,25 +41,64 @@ function resolveDescription(value: unknown) {
   return undefined;
 }
 
-async function cleanContentDir() {
-  let entries;
+async function listCleanTargets(dir: string, preserved = new Set<string>()) {
   try {
-    entries = await fs.readdir(contentDir, { withFileTypes: true });
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((entry) => !preserved.has(entry.name))
+      .map((entry) => ({
+        path: path.join(dir, entry.name),
+        label: path.join(path.basename(dir), entry.name),
+      }));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
+}
 
-  await Promise.all(
-    entries
-      .filter((entry) => !preservedFiles.has(entry.name))
-      .map((entry) =>
-        fs.rm(path.join(contentDir, entry.name), {
-          recursive: true,
-          force: true,
-        }),
-      ),
-  );
+async function cleanGeneratedDirs(step: ReturnType<typeof createStepProgress>) {
+  const targets = [
+    ...(await listCleanTargets(contentDir, preservedFiles)),
+    ...(await listCleanTargets(publicDir)),
+  ];
+
+  if (targets.length === 0) {
+    step.skip("Nothing to clean");
+    return;
+  }
+
+  step.start(targets.length);
+  for (const target of targets) {
+    await fs.rm(target.path, { recursive: true, force: true });
+    step.advance(target.label);
+  }
+  step.complete(`Removed ${targets.length} item${targets.length === 1 ? "" : "s"}`);
+}
+
+async function writeVaultOutputs(
+  files: OutputFile[],
+  step: ReturnType<typeof createStepProgress>,
+) {
+  const targetDirs: Record<OutputFile["type"], string> = {
+    asset: publicDir,
+    content: contentDir,
+    data: contentDir,
+    custom: "",
+  };
+
+  if (files.length === 0) {
+    step.skip("No files to write");
+    return;
+  }
+
+  step.start(files.length);
+  for (const file of files) {
+    const mappedPath = path.join(targetDirs[file.type], file.path);
+    await fs.mkdir(path.dirname(mappedPath), { recursive: true });
+    await fs.writeFile(mappedPath, file.content);
+    step.advance(file.path);
+  }
+  step.complete(`Wrote ${files.length} file${files.length === 1 ? "" : "s"}`);
 }
 
 async function listVaultEntries(vaultDir: string): Promise<VaultEntry[]> {
@@ -65,23 +114,6 @@ async function listVaultEntries(vaultDir: string): Promise<VaultEntry[]> {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
-}
-
-function printVaultTree(vaultDir: string, entries: VaultEntry[]) {
-  console.log(`\nVault: ${vaultDir}\n`);
-
-  if (entries.length === 0) {
-    console.log("  (empty)\n");
-    return;
-  }
-
-  for (const [index, entry] of entries.entries()) {
-    const connector = index === entries.length - 1 ? "└── " : "├── ";
-    const suffix = entry.isDirectory ? "/" : "";
-    console.log(`${connector}${entry.name}${suffix}`);
-  }
-
-  console.log("");
 }
 
 function parseSavedInclude(value: string | undefined) {
@@ -150,60 +182,85 @@ async function resolveInclude(vaultDir: string) {
     process.exit(1);
   }
 
-  printVaultTree(vaultDir, entries);
-
-  const selected = await checkbox({
-    message: "Select top-level folders and files to include",
-    choices: entries.map((entry) => ({
-      name: entry.isDirectory ? `${entry.name}/` : entry.name,
-      value: entry.name,
-      checked: saved.includes(entry.name),
-    })),
-    validate: (value) => value.length > 0 || "Select at least one item",
-  });
+  const selected = await promptIncludeSelection(vaultDir, entries, saved);
 
   await saveGenerateInclude(selected);
-  console.log(`Saved selection to .env as GENERATE_INCLUDE=${selected.join(",")}`);
+  console.log(`\nSaved selection to .env as GENERATE_INCLUDE=${selected.join(",")}`);
 
   return buildIncludePatterns(selected, entries);
 }
 
-const vaultDir = process.env.OBSIDIAN_VAULT_PATH;
+async function main() {
+  const vaultDir = process.env.OBSIDIAN_VAULT_PATH;
 
-if (!vaultDir) {
-  console.error("OBSIDIAN_VAULT_PATH is not set. Add it to .env.");
-  process.exit(1);
+  if (!vaultDir) {
+    console.error("OBSIDIAN_VAULT_PATH is not set. Add it to .env.");
+    process.exit(1);
+  }
+
+  try {
+    await fs.access(vaultDir);
+  } catch {
+    console.error(`Obsidian vault not found: ${vaultDir}`);
+    process.exit(1);
+  }
+
+  const include = await resolveInclude(vaultDir);
+
+  const progress = new GenerateProgress([
+    { id: "clean", label: "Cleaning generated files" },
+    { id: "convert", label: "Converting vault" },
+    { id: "write", label: "Writing files" },
+    { id: "canvas-sync", label: "Syncing canvas assets" },
+    { id: "canvas-pages", label: "Generating canvas pages" },
+  ]);
+
+  await runWithGenerateUi(progress, async () => {
+    const clean = createStepProgress(progress, "clean");
+    const convert = createStepProgress(progress, "convert");
+    const write = createStepProgress(progress, "write");
+    const canvasSync = createStepProgress(progress, "canvas-sync");
+    const canvasPages = createStepProgress(progress, "canvas-pages");
+
+    await cleanGeneratedDirs(clean);
+
+    convert.start(0);
+    convert.setDetail("Reading vault files...");
+    const rawFiles = await readVaultFiles({ dir: vaultDir, include });
+    convert.setDetail(
+      `Found ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}. Converting...`,
+    );
+
+    const outputs = await convertVaultFiles(rawFiles, {
+      transformFrontmatter(frontmatter, { file }) {
+        if (file.format !== "content") return frontmatter;
+
+        const title = resolveTitle(file, String(frontmatter.title ?? ""));
+        const description = resolveDescription(frontmatter.description);
+        const result: Record<string, unknown> = { ...frontmatter, title };
+
+        if (description) result.description = description;
+        else delete result.description;
+
+        return result;
+      },
+    });
+
+    convert.complete(
+      `Converted ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}`,
+    );
+
+    await writeVaultOutputs(outputs, write);
+    await syncCanvasFromVault(vaultDir, include, canvasSync);
+    await generateCanvasPages(canvasPages);
+  });
 }
 
-try {
-  await fs.access(vaultDir);
-} catch {
-  console.error(`Obsidian vault not found: ${vaultDir}`);
+main().catch((error) => {
+  if (error instanceof Error && error.message === "Selection cancelled") {
+    console.error("Generate cancelled.");
+    process.exit(1);
+  }
+  console.error(error);
   process.exit(1);
-}
-
-const include = await resolveInclude(vaultDir);
-
-await cleanContentDir();
-
-await fromVault({
-  dir: vaultDir,
-  include,
-  convert: {
-    transformFrontmatter(frontmatter, { file }) {
-      if (file.format !== "content") return frontmatter;
-
-      const title = resolveTitle(file, String(frontmatter.title ?? ""));
-      const description = resolveDescription(frontmatter.description);
-      const result: Record<string, unknown> = { ...frontmatter, title };
-
-      if (description) result.description = description;
-      else delete result.description;
-
-      return result;
-    },
-  },
-  out: {
-    contentDir: `${contentDir}/`,
-  },
 });

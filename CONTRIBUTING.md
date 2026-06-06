@@ -22,6 +22,8 @@ Thanks for your interest in VaultPress.
    pnpm generate
    ```
 
+   `pnpm generate` clears previously generated output before syncing. It removes all top-level items under `content/` except `index.mdx` and `graph.mdx`, and removes everything under `public/`. See [Generation rules](README.md#generation-rules) in `README.md` for the full cleanup scope.
+
 4. Start the development server:
 
    ```bash
@@ -34,7 +36,7 @@ Thanks for your interest in VaultPress.
 | --- | --- |
 | `pnpm dev` | Start the development server |
 | `pnpm build` | Create a production build |
-| `pnpm generate` | Sync notes from the configured Obsidian vault |
+| `pnpm generate` | Sync notes, media, and canvas files from the configured Obsidian vault (cleans `content/` and `public/` first) |
 | `pnpm obsidian` | Open the configured vault in Obsidian |
 | `pnpm types:check` | Run MDX generation, Next.js typegen, and TypeScript |
 | `pnpm lint` | Run Oxlint |

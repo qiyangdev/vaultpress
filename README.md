@@ -36,14 +36,14 @@ SITE_PROTECT_PASSWORD=your-password
 ## Workflow
 
 ```text
-Obsidian vault → pnpm generate → content/ → pnpm dev → site
+Obsidian vault → pnpm generate → content/ + public/ → pnpm dev → site
 ```
 
 1. Edit notes in your Obsidian vault
-2. Run `pnpm generate` to convert Markdown into MDX under `content/`
+2. Run `pnpm generate` to convert Markdown into MDX under `content/`, and sync Canvas files into `public/`
 3. Run `pnpm dev` to preview locally at http://localhost:3000
 
-`pnpm generate` only reads your vault and writes to `content/` — it does not modify notes in Obsidian.
+`pnpm generate` only reads your vault and writes to `content/` and `public/` — it does not modify notes in Obsidian.
 
 ## Commands
 
@@ -138,15 +138,39 @@ After a correct password, the browser stores an HttpOnly cookie for about 30 day
 ## Directory layout
 
 - `.env` — Vault path, site language, generate selection, protect password
-- `content/` — Generated MDX (from `generate`), plus hand-written pages
+- `content/` — Generated MDX (from `generate`), plus hand-written `index.mdx` and `graph.mdx`
+- `public/` — Generated static assets (vault media, Canvas `.canvas` files, and canvas-referenced images/PDFs, etc.)
 - `app/` — Next.js pages and routes
-- `lib/` — Locale, Obsidian URIs, tags, protected access, shared config
+- `lib/` — Locale, Obsidian URIs, tags, protected access, canvas parsing, shared config
+- `components/canvas-*.tsx` — Canvas viewer (React Flow) and node renderers
 - `scripts/generate.ts` — Vault → site generation script (read-only on vault)
+- `scripts/generate-canvas-pages.ts` — Syncs canvas files/assets and generates canvas MDX pages
 - `scripts/open-obsidian.ts` — Opens the configured vault in Obsidian
 
 ## Generation rules
 
-`scripts/generate.ts` clears `content/` before each run, except hand-written `index.mdx` and `graph.mdx`, so removed or renamed notes do not leave stale files.
+### Cleanup scope
+
+Each `pnpm generate` run starts by deleting previously generated output so removed vault items do not leave stale site files.
+
+| Location | What is removed | What is preserved |
+| --- | --- | --- |
+| `content/` | Every top-level file and folder | `index.mdx`, `graph.mdx` only |
+| `public/` | Everything inside the directory | Nothing |
+
+Examples of items removed from `content/`: note folders (`fleeting/`, `permanent/`, …), generated canvas pages (`canvas/demo.mdx`), and any other generated MDX trees.
+
+Examples of items removed from `public/`: synced `.canvas` files (`canvas/demo.canvas`), canvas-referenced assets (`vaultpress.png`), and other vault media written by `generate`.
+
+After cleanup, `generate` repopulates both directories from the current vault selection:
+
+1. Vault notes and media → `content/` + `public/`
+2. Canvas files and their referenced assets → `public/`
+3. Canvas page wrappers → `content/`
+
+Do not store hand-maintained static files under `public/` — they will be deleted on the next run. Keep long-lived documentation in `content/index.mdx`, `content/graph.mdx`, or outside the generated output paths.
+
+### Include selection
 
 The first interactive run shows the vault's top-level tree so you can pick folders and files to include. The choice is saved as `GENERATE_INCLUDE` in `.env`. Use `pnpm generate -- --select` to re-pick. In non-interactive environments, all top-level items are included by default.
 
@@ -154,6 +178,12 @@ Excluded from generation:
 
 - `.obsidian/` — Obsidian configuration
 - `templates/` — Note templates
+
+Canvas handling (during `pnpm generate`):
+
+- `.canvas` files under `GENERATE_INCLUDE` are copied from the vault to `public/` (same relative path)
+- Media referenced by canvas nodes (images, video, audio, PDF, group backgrounds) are copied into `public/` even when the asset is outside `GENERATE_INCLUDE`
+- An MDX wrapper is generated under `content/` for each canvas (for example `public/canvas/demo.canvas` → `content/canvas/demo.mdx`)
 
 Frontmatter handling:
 
@@ -166,11 +196,52 @@ Frontmatter handling:
 
 The [Graph View](/graph) page shows an interactive graph of site pages and wikilink connections. Each node is a page; edges are internal links. Click a node to open that page. Protected pages appear only after unlocking.
 
+## Canvas View
+
+VaultPress publishes [Obsidian Canvas](https://jsoncanvas.org/) files as read-only pages.
+
+### Setup
+
+1. Create or edit `.canvas` files in your vault (for example `canvas/demo.canvas`)
+2. Include the canvas folder in `GENERATE_INCLUDE` (or select it during `pnpm generate -- --select`)
+3. Run `pnpm generate` — canvas files land in `public/`, and site pages are generated under `content/`
+4. Open the page in the site (for example [/canvas/demo](/canvas/demo))
+
+### Supported features
+
+- **Nodes** — text, file, link, and group
+- **Edges** — side anchors, arrow ends, colors, labels
+- **Colors** — Obsidian presets `1`–`6` and custom hex values
+- **Group** — label above the frame; optional background image (`cover` / `ratio` / `repeat`)
+- **File** — filename label above the frame; image, video, audio, PDF, and other file types
+- **Markdown files** — in-node preview using the same MDX pipeline as documentation pages; click the node background to open the full page; links inside the preview work independently
+- **Text** — lightweight Markdown and wikilinks inside the node
+- **Interaction** — drag to pan, scroll to zoom
+
+Canvas pages use `full: true` layout (no table of contents) and render inside a fixed-height viewer.
+
+### Limitations (v1)
+
+- Read-only — no editing on the site
+- Text nodes use a lightweight Markdown renderer, not full MDX
+- `![[note.canvas]]` embeds in notes are not supported yet
+- File `subpath` (heading anchors) is appended to links but does not scroll the in-node preview
+
 ## Stack
 
-- **Framework**: Next.js + Fumadocs
+- **Framework**: Next.js + Fumadocs + React Flow
 - **Content**: Obsidian Markdown → MDX ([fumadocs-obsidian](https://fumadocs.dev/docs/integrations/obsidian))
-- **Features**: Full-text search, knowledge graph, page tags, shared-password page gating, Obsidian/GitHub/Markdown actions, Mermaid, math
+- **Features**: Full-text search, knowledge graph, Obsidian Canvas, page tags, shared-password page gating, Obsidian/GitHub/Markdown actions, Mermaid, math
+
+## TODO
+
+Canvas and follow-up items:
+
+- [ ] Support `![[path/to/canvas.canvas]]` embeds inside notes
+- [ ] Render text nodes with the full MDX pipeline (match file-node preview fidelity)
+- [ ] Scroll file-node preview to `subpath` heading anchors
+- [ ] Add automated tests for canvas parsing and asset sync
+- [ ] Document remote image URLs in canvas file nodes (Next.js `images` config)
 
 ## Contributing
 

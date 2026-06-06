@@ -1,0 +1,83 @@
+/*
+ * Fix @xyflow/react Panel positioning when Tailwind utility classes conflict
+ * with xyflow's `.bottom` / `.left` position class names.
+ */
+.react-flow__panel {
+  position: absolute !important;
+  z-index: 5;
+}
+
+.react-flow__panel.bottom {
+  bottom: 0;
+}
+
+.react-flow__panel.top {
+  top: 0;
+}
+
+.react-flow__panel.left {
+  left: 0;
+}
+
+.react-flow__panel.right {
+  right: 0;
+}
+
+.react-flow__panel.canvas-controls {
+  margin: 12px;
+  width: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.canvas-text-content :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.canvas-text-content :is(h1, h2, h3, h4, h5, h6):last-child,
+.canvas-text-content p:last-child,
+.canvas-text-content ul:last-child,
+.canvas-text-content ol:last-child,
+.canvas-text-content pre:last-child,
+.canvas-text-content blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.canvas-text-content h1 {
+  font-size: 1.125rem;
+}
+
+.canvas-text-content h2 {
+  font-size: 1rem;
+}
+
+.canvas-text-content h3 {
+  font-size: 0.925rem;
+}
+
+.canvas-text-content code {
+  border-radius: 0.25rem;
+  background: color-mix(in oklab, var(--color-fd-muted) 70%, transparent);
+  padding: 0.1rem 0.25rem;
+  font-size: 0.85em;
+}
+
+.canvas-text-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.canvas-text-content ol {
+  list-style-type: decimal;
+}
+
+.canvas-flow .react-flow__node:has(.canvas-labeled-node) {
+  overflow: visible;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
