@@ -11,13 +11,24 @@ Keep writing in Obsidian as usual. Run `pnpm generate` to sync notes into `conte
 
 ## Setup
 
-Point VaultPress at your vault in `.env`:
+Copy `.env.example` to `.env` and configure:
 
 ```bash
+# Required for pnpm generate and pnpm obsidian
 OBSIDIAN_VAULT_PATH="/path/to/your/vault"
+
+# Optional
+SITE_LANGUAGE=en
+GENERATE_INCLUDE=fleeting,permanent,literature
 ```
 
-Copy `.env.example` to `.env` and set the absolute path to your Obsidian vault. Both `pnpm obsidian` and `pnpm generate` read this variable.
+| Variable | Used by | Description |
+| --- | --- | --- |
+| `OBSIDIAN_VAULT_PATH` | `pnpm generate`, `pnpm obsidian` | Absolute path to your Obsidian vault (local CLI only) |
+| `SITE_LANGUAGE` | Site UI | `en` (default) or `cn` — search, navigation, table of contents |
+| `GENERATE_INCLUDE` | `pnpm generate` | Comma-separated top-level folders/files to sync; saved after interactive selection |
+
+`OBSIDIAN_VAULT_PATH` is not read when building site links — the server never accesses your local filesystem for page actions.
 
 ## Workflow
 
@@ -27,7 +38,7 @@ Obsidian vault → pnpm generate → content/ → pnpm dev → site
 
 1. Edit notes in your Obsidian vault
 2. Run `pnpm generate` to convert Markdown into MDX under `content/`
-3. Run `pnpm dev` to preview locally
+3. Run `pnpm dev` to preview locally at http://localhost:3000
 
 ## Commands
 
@@ -35,20 +46,48 @@ Obsidian vault → pnpm generate → content/ → pnpm dev → site
 | --- | --- |
 | `pnpm obsidian` | Open the vault configured in `OBSIDIAN_VAULT_PATH` |
 | `pnpm generate` | Generate site content from the vault |
+| `pnpm generate -- --select` | Re-pick top-level folders and files to include |
 | `pnpm dev` | Start the development server |
 | `pnpm build` | Build for production |
+| `pnpm types:check` | Run MDX generation, Next.js typegen, and TypeScript |
+| `pnpm lint` | Run Oxlint |
+
+## Site language
+
+Set `SITE_LANGUAGE` in `.env`:
+
+```bash
+SITE_LANGUAGE=en   # English (default)
+SITE_LANGUAGE=cn   # 简体中文
+```
+
+Restart the dev server after changing it. This changes the site UI only — your note content is not translated.
+
+## Page features
+
+Each documentation page includes:
+
+- **Tags** — From frontmatter `tags` (string or list), shown below the description
+- **Copy Markdown** — Copy the processed Markdown for the page
+- **Open** menu:
+  - **Open in Obsidian** — `obsidian://open?file=…` using the page's public relative path (`.mdx` → `.md`). Opens the note in local Obsidian when your vault mirrors the generated structure.
+  - **Open in GitHub** — Link to the page source under `content/` (configure `lib/shared.ts` → `gitConfig` for your repo)
+  - **View as Markdown** — Open the raw Markdown endpoint for the page
 
 ## Directory layout
 
-- `.env` — Vault path (`OBSIDIAN_VAULT_PATH`)
+- `.env` — Vault path, site language, generate selection
 - `content/` — Generated MDX (from `generate`), plus hand-written pages
 - `app/` — Next.js pages and routes
+- `lib/` — Locale, Obsidian URIs, tags, shared config
 - `scripts/generate.ts` — Vault → site generation script
 - `scripts/open-obsidian.ts` — Opens the configured vault in Obsidian
 
 ## Generation rules
 
 `scripts/generate.ts` clears `content/` before each run, except hand-written `index.mdx` and `graph.mdx`, so removed or renamed notes do not leave stale files.
+
+The first interactive run shows the vault's top-level tree so you can pick folders and files to include. The choice is saved as `GENERATE_INCLUDE` in `.env`. Use `pnpm generate -- --select` to re-pick. In non-interactive environments, all top-level items are included by default.
 
 Excluded from generation:
 
@@ -59,6 +98,7 @@ Frontmatter handling:
 
 - `title` — Uses the note's `title` field, then the first `#` heading, then the filename
 - `description` — Uses the note's `description` field only; omitted if empty
+- `tags` — Passed through from Obsidian frontmatter; normalized to a string array for display
 
 ## Graph View
 
@@ -68,4 +108,4 @@ The [[Graph View]] page shows an interactive graph of site pages and wikilink co
 
 - **Framework**: Next.js + Fumadocs
 - **Content**: Obsidian Markdown → MDX ([fumadocs-obsidian](https://fumadocs.dev/docs/integrations/obsidian))
-- **Features**: Full-text search, knowledge graph, Mermaid, math
+- **Features**: Full-text search, knowledge graph, page tags, Obsidian/GitHub/Markdown actions, Mermaid, math

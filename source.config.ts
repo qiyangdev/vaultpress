@@ -4,11 +4,18 @@ import { remarkMdxMermaid } from "fumadocs-core/mdx-plugins";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { remarkWikilinks } from "./lib/remark-wikilinks";
+import { normalizeTags } from "./lib/tags";
+import { z } from "zod";
 
 export const docs = defineDocs({
   dir: "content",
   docs: {
-    schema: pageSchema,
+    schema: pageSchema.extend({
+      tags: z
+        .union([z.string(), z.array(z.string())])
+        .optional()
+        .transform(normalizeTags),
+    }),
     postprocess: {
       includeProcessedMarkdown: true,
       extractLinkReferences: true,
