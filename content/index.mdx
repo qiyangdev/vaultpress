@@ -20,6 +20,7 @@ OBSIDIAN_VAULT_PATH="/path/to/your/vault"
 # Optional
 SITE_LANGUAGE=en
 GENERATE_INCLUDE=fleeting,permanent,literature
+SITE_PROTECT_PASSWORD=your-password
 ```
 
 | Variable | Used by | Description |
@@ -27,6 +28,7 @@ GENERATE_INCLUDE=fleeting,permanent,literature
 | `OBSIDIAN_VAULT_PATH` | `pnpm generate`, `pnpm obsidian` | Absolute path to your Obsidian vault (local CLI only) |
 | `SITE_LANGUAGE` | Site UI | `en` (default) or `cn` — search, navigation, table of contents |
 | `GENERATE_INCLUDE` | `pnpm generate` | Comma-separated top-level folders/files to sync; saved after interactive selection |
+| `SITE_PROTECT_PASSWORD` | Site access | Shared password gate for `protected: true` pages (not encryption) |
 
 `OBSIDIAN_VAULT_PATH` is not read when building site links — the server never accesses your local filesystem for page actions.
 
@@ -39,6 +41,8 @@ Obsidian vault → pnpm generate → content/ → pnpm dev → site
 1. Edit notes in your Obsidian vault
 2. Run `pnpm generate` to convert Markdown into MDX under `content/`
 3. Run `pnpm dev` to preview locally at http://localhost:3000
+
+`pnpm generate` only reads your vault and writes to `content/` — it does not modify notes in Obsidian.
 
 ## Commands
 
@@ -74,13 +78,69 @@ Each documentation page includes:
   - **Open in GitHub** — Link to the page source under `content/` (configure `lib/shared.ts` → `gitConfig` for your repo)
   - **View as Markdown** — Open the raw Markdown endpoint for the page
 
+## Protected pages
+
+Protected pages use **shared-password access control**. They are **not encrypted**: generated MDX still lives in `content/` like any other page. The site only withholds the **body** and some exports until a visitor proves they know `SITE_PROTECT_PASSWORD`.
+
+Mark a note with frontmatter:
+
+```yaml
+protected: true
+```
+
+Obsidian may export this as a string (`protected: 'true'`) — both are supported.
+
+Set the shared password in `.env` (never commit this value):
+
+```bash
+SITE_PROTECT_PASSWORD=your-password
+```
+
+Restart the dev server after changing it. One password unlocks **all** protected pages for that browser session.
+
+### Viewing protected pages
+
+Before unlocking, protected pages are hidden from the sidebar, search, graph, and Markdown endpoints. If someone guesses the URL, they can open the page shell directly — but still **cannot read the body** without the password, for example:
+
+```text
+/permanent/202606061435
+```
+
+The page **title, description, and tags remain visible** even before unlock. A password form appears **in the body only** — Copy Markdown, View as Markdown, and the Open menu stay hidden until unlocked.
+
+After a correct password, the browser stores an HttpOnly cookie for about 30 days. Requires server deployment (`pnpm build` + `pnpm start`, or Vercel) with HTTPS in production — not static export.
+
+### Security model
+
+**What this scheme is good for**
+
+- Keeping protected note bodies out of casual browsing, search, and Markdown export
+- A simple gate when the site is public but a few pages should need a shared secret
+- Pairing with a **private repository** so `content/` is not world-readable on GitHub
+
+**What it does not protect against**
+
+- **Repository or build access** — `content/*.mdx` contains the full source; anyone with repo, CI, or server filesystem access can read it without the password
+- **URL guessing** — if someone knows your folder structure, they may find the page URL and see its title, description, and tags before unlock; the **body and Markdown exports remain blocked**
+- **Metadata leakage** — title, description, and tags are shown before unlock
+- **One password for everything** — there are no per-page or per-user passwords; sharing the password shares access to all protected pages
+- **Cookie scope** — one successful unlock grants access to every protected page until the cookie expires
+- **Brute force** — `/api/protected-auth` has no built-in rate limiting; use a strong password and HTTPS
+- **True secrecy** — this is access gating, not encryption, audit logging, or account-based authorization
+
+**Practical guidance**
+
+- Use a long, unique `SITE_PROTECT_PASSWORD` and keep `.env` out of version control
+- Deploy over HTTPS so the HttpOnly cookie is marked `Secure` in production
+- For highly sensitive material, do not publish it through `pnpm generate`; keep it only in Obsidian, or use a proper auth system instead
+
 ## Directory layout
 
-- `.env` — Vault path, site language, generate selection
+- `.env` — Vault path, site language, generate selection, protect password
 - `content/` — Generated MDX (from `generate`), plus hand-written pages
 - `app/` — Next.js pages and routes
-- `lib/` — Locale, Obsidian URIs, tags, shared config
-- `scripts/generate.ts` — Vault → site generation script
+- `lib/` — Locale, Obsidian URIs, tags, protected access, shared config
+- `scripts/generate.ts` — Vault → site generation script (read-only on vault)
 - `scripts/open-obsidian.ts` — Opens the configured vault in Obsidian
 
 ## Generation rules
@@ -99,13 +159,14 @@ Frontmatter handling:
 - `title` — Uses the note's `title` field, then the first `#` heading, then the filename
 - `description` — Uses the note's `description` field only; omitted if empty
 - `tags` — Passed through from Obsidian frontmatter; normalized to a string array for display
+- `protected` — When `true` (or `'true'`), gates the page body behind `SITE_PROTECT_PASSWORD` (not encryption)
 
 ## Graph View
 
-The [[Graph View]] page shows an interactive graph of site pages and wikilink connections. Each node is a page; edges are internal links. Click a node to open that page.
+The [[Graph View]] page shows an interactive graph of site pages and wikilink connections. Each node is a page; edges are internal links. Click a node to open that page. Protected pages appear only after unlocking.
 
 ## Stack
 
 - **Framework**: Next.js + Fumadocs
 - **Content**: Obsidian Markdown → MDX ([fumadocs-obsidian](https://fumadocs.dev/docs/integrations/obsidian))
-- **Features**: Full-text search, knowledge graph, page tags, Obsidian/GitHub/Markdown actions, Mermaid, math
+- **Features**: Full-text search, knowledge graph, page tags, shared-password page gating, Obsidian/GitHub/Markdown actions, Mermaid, math

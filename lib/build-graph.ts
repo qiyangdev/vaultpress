@@ -1,8 +1,12 @@
 import { source } from '@/lib/source';
 import type { Graph } from '../components/graph-view';
 
-export function buildGraph(): Graph {
-  const pages = source.getPages();
+import { pageRequiresAuth } from '@/lib/protected';
+
+export function buildGraph(hasAccess = false): Graph {
+  const pages = source.getPages().filter(
+    (page) => hasAccess || !pageRequiresAuth(page),
+  );
   const graph: Graph = { links: [], nodes: [] };
 
   for (const page of pages) {
@@ -17,6 +21,7 @@ export function buildGraph(): Graph {
     for (const ref of extractedReferences) {
       const refPage = source.getPageByHref(ref.href);
       if (!refPage) continue;
+      if (!hasAccess && pageRequiresAuth(refPage.page)) continue;
 
       graph.links.push({
         source: page.url,

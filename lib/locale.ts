@@ -7,6 +7,12 @@ export const siteLanguages = {
     htmlLang: "en",
     searchLanguage: "english",
     openInObsidian: "Open in Obsidian",
+    protectedDescription: "Enter the site password to view this page.",
+    protectedPassword: "Password",
+    protectedSubmit: "Unlock",
+    protectedError: "Incorrect password.",
+    protectedNotConfigured:
+      "This page is marked protected. Set SITE_PROTECT_PASSWORD in .env to enable access.",
     translations: defineTranslations().extend(uiTranslations()),
   },
   cn: {
@@ -14,6 +20,12 @@ export const siteLanguages = {
     htmlLang: "zh-CN",
     searchLanguage: "chinese",
     openInObsidian: "在 Obsidian 中打开",
+    protectedDescription: "输入站点密码以查看此页面。",
+    protectedPassword: "密码",
+    protectedSubmit: "解锁",
+    protectedError: "密码错误。",
+    protectedNotConfigured:
+      "此页面已标记为受保护。请在 .env 中设置 SITE_PROTECT_PASSWORD 以启用访问。",
     translations: defineTranslations()
       .extend(uiTranslations())
       .add("ui", {

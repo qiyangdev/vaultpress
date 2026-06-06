@@ -1,10 +1,12 @@
-import { getLLMText, source } from '@/lib/source';
+import { getLLMText } from '@/lib/source';
+import { getAccessiblePages, hasProtectedAccess } from '@/lib/protected';
 
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const scan = source.getPages().map(getLLMText);
-  const scanned = await Promise.all(scan);
+  const hasAccess = await hasProtectedAccess();
+  const pages = getAccessiblePages(hasAccess);
+  const scanned = await Promise.all(pages.map(getLLMText));
 
   return new Response(scanned.join('\n\n'));
 }
