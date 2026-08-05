@@ -8,10 +8,12 @@ import type {
 import { renderCanvasMarkdown } from '@/lib/canvas-markdown';
 import {
   getCanvasFileKind,
+  normalizeCanvasPath,
   resolveCanvasAssetUrl,
 } from '@/lib/canvas-paths';
 import { parseCanvasData } from '@/lib/load-canvas';
 import { resolveCanvasFileUrl } from '@/lib/resolve-canvas-file';
+import { resolveExistingPathWithin } from '@/lib/safe-path';
 import { source } from '@/lib/source';
 
 function resolveWikilink(target: string) {
@@ -60,7 +62,9 @@ async function prepareNode(node: CanvasNode): Promise<RenderableCanvasNode> {
 }
 
 export async function prepareCanvasFromPublic(src: string): Promise<RenderableCanvasData> {
-  const filePath = path.join(process.cwd(), 'public', src.replace(/^\//, ''));
+  const publicRoot = path.join(process.cwd(), 'public');
+  const relativePath = normalizeCanvasPath(src.startsWith('/') ? src.slice(1) : src);
+  const filePath = await resolveExistingPathWithin(publicRoot, relativePath);
   const raw = await fs.readFile(filePath, 'utf8');
   const data = parseCanvasData(raw);
 

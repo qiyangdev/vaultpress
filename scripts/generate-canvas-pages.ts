@@ -3,11 +3,20 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getCanvasFileKind, normalizeCanvasPath } from '../lib/canvas-paths.ts';
 import { parseCanvasData } from '../lib/load-canvas.ts';
+import {
+  resolveExistingPathWithin,
+  resolvePathWithin,
+} from '../lib/safe-path.ts';
 import type { CanvasData } from '../lib/canvas-types.ts';
 import type { StepProgress } from './progress.ts';
 
 const contentDir = 'content';
 const publicDir = 'public';
+
+type CanvasOutputDirs = {
+  contentDir?: string;
+  publicDir?: string;
+};
 
 function collectCanvasAssetPaths(data: CanvasData) {
   const paths = new Set<string>();
@@ -24,18 +33,23 @@ function collectCanvasAssetPaths(data: CanvasData) {
   return paths;
 }
 
-async function copyVaultFile(vaultDir: string, relativePath: string) {
+async function copyVaultFile(
+  vaultDir: string,
+  outputPublicDir: string,
+  relativePath: string,
+) {
   const normalized = normalizeCanvasPath(relativePath);
-  const source = path.join(vaultDir, normalized);
-  const destination = path.join(publicDir, normalized);
+  let source: string;
 
   try {
-    await fs.access(source);
-  } catch {
+    source = await resolveExistingPathWithin(vaultDir, normalized);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     console.warn(`Canvas asset not found in vault: ${normalized}`);
     return false;
   }
 
+  const destination = resolvePathWithin(outputPublicDir, normalized);
   await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.copyFile(source, destination);
   return true;
@@ -45,7 +59,9 @@ export async function syncCanvasFromVault(
   vaultDir: string,
   include: string[],
   step?: StepProgress,
+  output: CanvasOutputDirs = {},
 ) {
+  const outputPublicDir = output.publicDir ?? publicDir;
   const vaultFiles = await readVaultFiles({ dir: vaultDir, include });
   const canvasFiles = vaultFiles
     .map((file) => file.path)
@@ -55,11 +71,13 @@ export async function syncCanvasFromVault(
   for (const relativePath of canvasFiles) {
     const normalized = normalizeCanvasPath(relativePath);
     try {
-      const raw = await fs.readFile(path.join(vaultDir, normalized), 'utf8');
+      const canvasPath = await resolveExistingPathWithin(vaultDir, normalized);
+      const raw = await fs.readFile(canvasPath, 'utf8');
       for (const asset of collectCanvasAssetPaths(parseCanvasData(raw))) {
         assetPaths.add(asset);
       }
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       console.warn(`Canvas file not found in vault: ${normalized}`);
     }
   }
@@ -80,7 +98,7 @@ export async function syncCanvasFromVault(
   let copiedAssets = 0;
 
   for (const relativePath of copyQueue) {
-    if (await copyVaultFile(vaultDir, relativePath)) {
+    if (await copyVaultFile(vaultDir, outputPublicDir, relativePath)) {
       if (!relativePath.endsWith('.canvas')) copiedAssets += 1;
       step?.advance(relativePath);
     }
@@ -128,14 +146,18 @@ async function findCanvasFiles(dir: string): Promise<string[]> {
   return results.sort();
 }
 
-function toContentPath(publicPath: string) {
-  const relative = path.relative(publicDir, publicPath).replace(/\\/g, '/');
+function toContentPath(
+  publicPath: string,
+  outputPublicDir: string,
+  outputContentDir: string,
+) {
+  const relative = path.relative(outputPublicDir, publicPath).replace(/\\/g, '/');
   const slug = relative.replace(/\.canvas$/i, '');
-  return path.join(contentDir, `${slug}.mdx`);
+  return path.join(outputContentDir, `${slug}.mdx`);
 }
 
-function toPublicSrc(publicPath: string) {
-  const relative = path.relative(publicDir, publicPath).replace(/\\/g, '/');
+function toPublicSrc(publicPath: string, outputPublicDir: string) {
+  const relative = path.relative(outputPublicDir, publicPath).replace(/\\/g, '/');
   return `/${relative}`;
 }
 
@@ -152,11 +174,16 @@ import { CanvasPageContent } from "@/components/canvas-page";
 `;
 }
 
-export async function generateCanvasPages(step?: StepProgress) {
+export async function generateCanvasPages(
+  step?: StepProgress,
+  output: CanvasOutputDirs = {},
+) {
+  const outputContentDir = output.contentDir ?? contentDir;
+  const outputPublicDir = output.publicDir ?? publicDir;
   let files: string[] = [];
 
   try {
-    files = await findCanvasFiles(publicDir);
+    files = await findCanvasFiles(outputPublicDir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
     throw error;
@@ -171,11 +198,11 @@ export async function generateCanvasPages(step?: StepProgress) {
 
   for (const filePath of files) {
     const title = humanizeCanvasTitle(path.basename(filePath));
-    const contentPath = toContentPath(filePath);
-    const src = toPublicSrc(filePath);
+    const contentPath = toContentPath(filePath, outputPublicDir, outputContentDir);
+    const src = toPublicSrc(filePath, outputPublicDir);
     await fs.mkdir(path.dirname(contentPath), { recursive: true });
     await fs.writeFile(contentPath, buildCanvasMdx(title, src));
-    step?.advance(path.relative(publicDir, filePath).replace(/\\/g, '/'));
+    step?.advance(path.relative(outputPublicDir, filePath).replace(/\\/g, '/'));
   }
 
   step?.complete(

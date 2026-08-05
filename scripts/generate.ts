@@ -14,6 +14,8 @@ import {
   GenerateProgress,
   runWithGenerateUi,
 } from "./progress.ts";
+import { replaceDirectories } from "../lib/generation-transaction.ts";
+import { resolvePathWithin } from "../lib/safe-path.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -41,48 +43,43 @@ function resolveDescription(value: unknown) {
   return undefined;
 }
 
-async function listCleanTargets(dir: string, preserved = new Set<string>()) {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((entry) => !preserved.has(entry.name))
-      .map((entry) => ({
-        path: path.join(dir, entry.name),
-        label: path.join(path.basename(dir), entry.name),
-      }));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
+async function prepareStagedOutput(
+  stagedContentDir: string,
+  stagedPublicDir: string,
+  step: ReturnType<typeof createStepProgress>,
+) {
+  await Promise.all([
+    fs.mkdir(stagedContentDir, { recursive: true }),
+    fs.mkdir(stagedPublicDir, { recursive: true }),
+  ]);
 
-async function cleanGeneratedDirs(step: ReturnType<typeof createStepProgress>) {
-  const targets = [
-    ...(await listCleanTargets(contentDir, preservedFiles)),
-    ...(await listCleanTargets(publicDir)),
-  ];
+  step.start(preservedFiles.size);
+  let preserved = 0;
 
-  if (targets.length === 0) {
-    step.skip("Nothing to clean");
-    return;
+  for (const file of preservedFiles) {
+    try {
+      await fs.copyFile(path.join(contentDir, file), path.join(stagedContentDir, file));
+      preserved += 1;
+      step.advance(file);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      step.advance(`${file} (missing)`);
+    }
   }
 
-  step.start(targets.length);
-  for (const target of targets) {
-    await fs.rm(target.path, { recursive: true, force: true });
-    step.advance(target.label);
-  }
-  step.complete(`Removed ${targets.length} item${targets.length === 1 ? "" : "s"}`);
+  step.complete(`Preserved ${preserved} hand-written file${preserved === 1 ? "" : "s"}`);
 }
 
 async function writeVaultOutputs(
   files: OutputFile[],
+  stagedContentDir: string,
+  stagedPublicDir: string,
   step: ReturnType<typeof createStepProgress>,
 ) {
   const targetDirs: Record<OutputFile["type"], string> = {
-    asset: publicDir,
-    content: contentDir,
-    data: contentDir,
+    asset: stagedPublicDir,
+    content: stagedContentDir,
+    data: stagedContentDir,
     custom: "",
   };
 
@@ -93,7 +90,10 @@ async function writeVaultOutputs(
 
   step.start(files.length);
   for (const file of files) {
-    const mappedPath = path.join(targetDirs[file.type], file.path);
+    if (file.type === "custom") {
+      throw new Error(`Cannot publish custom output atomically: ${file.path}`);
+    }
+    const mappedPath = resolvePathWithin(targetDirs[file.type], file.path);
     await fs.mkdir(path.dirname(mappedPath), { recursive: true });
     await fs.writeFile(mappedPath, file.content);
     step.advance(file.path);
@@ -206,54 +206,77 @@ async function main() {
   }
 
   const include = await resolveInclude(vaultDir);
+  const stagingRoot = await fs.mkdtemp(path.join(process.cwd(), ".vaultpress-stage-"));
+  const stagedContentDir = path.join(stagingRoot, "content");
+  const stagedPublicDir = path.join(stagingRoot, "public");
 
   const progress = new GenerateProgress([
-    { id: "clean", label: "Cleaning generated files" },
+    { id: "prepare", label: "Preparing staged output" },
     { id: "convert", label: "Converting vault" },
     { id: "write", label: "Writing files" },
     { id: "canvas-sync", label: "Syncing canvas assets" },
     { id: "canvas-pages", label: "Generating canvas pages" },
+    { id: "publish", label: "Publishing generated output" },
   ]);
 
-  await runWithGenerateUi(progress, async () => {
-    const clean = createStepProgress(progress, "clean");
-    const convert = createStepProgress(progress, "convert");
-    const write = createStepProgress(progress, "write");
-    const canvasSync = createStepProgress(progress, "canvas-sync");
-    const canvasPages = createStepProgress(progress, "canvas-pages");
+  try {
+    await runWithGenerateUi(progress, async () => {
+      const prepare = createStepProgress(progress, "prepare");
+      const convert = createStepProgress(progress, "convert");
+      const write = createStepProgress(progress, "write");
+      const canvasSync = createStepProgress(progress, "canvas-sync");
+      const canvasPages = createStepProgress(progress, "canvas-pages");
+      const publish = createStepProgress(progress, "publish");
 
-    await cleanGeneratedDirs(clean);
+      await prepareStagedOutput(stagedContentDir, stagedPublicDir, prepare);
 
-    convert.start(0);
-    convert.setDetail("Reading vault files...");
-    const rawFiles = await readVaultFiles({ dir: vaultDir, include });
-    convert.setDetail(
-      `Found ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}. Converting...`,
-    );
+      convert.start(0);
+      convert.setDetail("Reading vault files...");
+      const rawFiles = await readVaultFiles({ dir: vaultDir, include });
+      convert.setDetail(
+        `Found ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}. Converting...`,
+      );
 
-    const outputs = await convertVaultFiles(rawFiles, {
-      transformFrontmatter(frontmatter, { file }) {
-        if (file.format !== "content") return frontmatter;
+      const outputs = await convertVaultFiles(rawFiles, {
+        transformFrontmatter(frontmatter, { file }) {
+          if (file.format !== "content") return frontmatter;
 
-        const title = resolveTitle(file, String(frontmatter.title ?? ""));
-        const description = resolveDescription(frontmatter.description);
-        const result: Record<string, unknown> = { ...frontmatter, title };
+          const title = resolveTitle(file, String(frontmatter.title ?? ""));
+          const description = resolveDescription(frontmatter.description);
+          const result: Record<string, unknown> = { ...frontmatter, title };
 
-        if (description) result.description = description;
-        else delete result.description;
+          if (description) result.description = description;
+          else delete result.description;
 
-        return result;
-      },
+          return result;
+        },
+      });
+
+      convert.complete(
+        `Converted ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}`,
+      );
+
+      await writeVaultOutputs(outputs, stagedContentDir, stagedPublicDir, write);
+      await syncCanvasFromVault(vaultDir, include, canvasSync, {
+        publicDir: stagedPublicDir,
+      });
+      await generateCanvasPages(canvasPages, {
+        contentDir: stagedContentDir,
+        publicDir: stagedPublicDir,
+      });
+
+      publish.start(1);
+      publish.setDetail("Replacing content/ and public/...");
+      await replaceDirectories([
+        { target: contentDir, replacement: stagedContentDir },
+        { target: publicDir, replacement: stagedPublicDir },
+      ]);
+      publish.advance();
+      publish.complete("Published both output directories");
     });
-
-    convert.complete(
-      `Converted ${rawFiles.length} file${rawFiles.length === 1 ? "" : "s"}`,
-    );
-
-    await writeVaultOutputs(outputs, write);
-    await syncCanvasFromVault(vaultDir, include, canvasSync);
-    await generateCanvasPages(canvasPages);
-  });
+  } finally {
+    await fs.rm(stagingRoot, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {

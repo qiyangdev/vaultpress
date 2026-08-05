@@ -1,6 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { frontmatter } from 'fumadocs-core/content/md/frontmatter';
+import { buildWikilinkIndex } from './wikilink-index';
 
 const WIKILINK = /\[\[([^[\]|]+)(?:\|([^[\]]+))?\]\]/g;
 
@@ -12,26 +11,6 @@ type MdastLink = {
 };
 type MdastParent = { type?: string; children: MdastNode[] };
 type MdastNode = MdastText | MdastLink | MdastParent;
-
-function buildPageIndex(contentDir: string) {
-  const map = new Map<string, string>();
-
-  for (const file of fs.readdirSync(contentDir)) {
-    if (!/\.mdx?$/.test(file)) continue;
-
-    const stem = file.replace(/\.mdx?$/, '');
-    if (stem === 'index') continue;
-
-    map.set(stem.toLowerCase(), `./${stem}`);
-
-    const raw = fs.readFileSync(path.join(contentDir, file), 'utf8');
-    const { data } = frontmatter(raw);
-    const title = (data as { title?: string }).title;
-    if (title) map.set(title.toLowerCase(), `./${stem}`);
-  }
-
-  return map;
-}
 
 function splitWikilinks(
   node: { type: 'text'; value: string },
@@ -78,7 +57,11 @@ function transformWikilinks(parent: MdastParent, resolve: (target: string) => st
 }
 
 export function remarkWikilinks(contentDir = 'content') {
-  const index = buildPageIndex(contentDir);
+  const index = buildWikilinkIndex(contentDir, (raw) => {
+    const { data } = frontmatter(raw);
+    const title = (data as { title?: unknown }).title;
+    return typeof title === 'string' ? title : undefined;
+  });
 
   const resolve = (target: string) =>
     index.get(target.toLowerCase()) ??

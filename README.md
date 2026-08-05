@@ -149,20 +149,20 @@ After a correct password, the browser stores an HttpOnly cookie for about 30 day
 
 ## Generation rules
 
-### Cleanup scope
+### Replacement scope
 
-Each `pnpm generate` run starts by deleting previously generated output so removed vault items do not leave stale site files.
+Each `pnpm generate` run builds a complete replacement under a temporary staging directory. Only after conversion, asset sync, and Canvas page generation all succeed does VaultPress replace `content/` and `public/`. If generation or publication fails, the previous output is kept or restored.
 
-| Location | What is removed | What is preserved |
+| Location | What is replaced | What is preserved |
 | --- | --- | --- |
 | `content/` | Every top-level file and folder | `index.mdx`, `graph.mdx` only |
 | `public/` | Everything inside the directory | Nothing |
 
-Examples of items removed from `content/`: note folders (`fleeting/`, `permanent/`, …), generated canvas pages (`canvas/demo.mdx`), and any other generated MDX trees.
+Items omitted from the new `content/` replacement disappear after publication: note folders (`fleeting/`, `permanent/`, …), generated canvas pages (`canvas/demo.mdx`), and any other generated MDX trees.
 
-Examples of items removed from `public/`: synced `.canvas` files (`canvas/demo.canvas`), canvas-referenced assets (`vaultpress.png`), and other vault media written by `generate`.
+Items omitted from the new `public/` replacement also disappear: synced `.canvas` files (`canvas/demo.canvas`), canvas-referenced assets (`vaultpress.png`), and other vault media written by `generate`.
 
-After cleanup, `generate` repopulates both directories from the current vault selection:
+The staged replacement is populated from the current vault selection:
 
 1. Vault notes and media → `content/` + `public/`
 2. Canvas files and their referenced assets → `public/`

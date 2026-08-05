@@ -1,5 +1,6 @@
 import { getSiteLanguage } from '@/lib/locale';
 import { hasProtectedAccess } from '@/lib/protected';
+import { getAuthorizedSearchUrl } from '@/lib/search-access';
 import { source } from '@/lib/source';
 import type { StructuredData } from 'fumadocs-core/mdx-plugins/remark-structure';
 import { createFromSource } from 'fumadocs-core/search/server';
@@ -37,11 +38,7 @@ const server = createFromSource(source, {
 
 export async function GET(request: Request) {
   const hasAccess = await hasProtectedAccess();
-  const url = new URL(request.url);
-
-  if (!hasAccess && !url.searchParams.has('tag')) {
-    url.searchParams.set('tag', 'public');
-  }
+  const url = getAuthorizedSearchUrl(request.url, hasAccess);
 
   return server.GET(new Request(url, request));
 }

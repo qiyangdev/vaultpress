@@ -1,6 +1,7 @@
 {
   "name": "vaultpress",
   "version": "0.1.0",
+  "type": "module",
   "description": "Publish an Obsidian vault as a documentation site with Next.js and Fumadocs",
   "license": "MIT",
   "author": "Qiyang",
@@ -26,6 +27,7 @@
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
+    "test": "node --test tests/*.test.mjs",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
     "lint": "oxlint",

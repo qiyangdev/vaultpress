@@ -6,6 +6,8 @@ export type CanvasFileKind =
   | 'markdown'
   | 'other';
 
+const WINDOWS_DRIVE_PATH = /^[a-zA-Z]:/;
+
 const IMAGE_EXTENSIONS = new Set([
   '.png',
   '.jpg',
@@ -21,7 +23,26 @@ const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.m4v']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac']);
 
 export function normalizeCanvasPath(filePath: string) {
-  return filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  const slashNormalized = filePath.replace(/\\/g, '/');
+
+  if (
+    !slashNormalized ||
+    slashNormalized.includes('\0') ||
+    slashNormalized.startsWith('/') ||
+    WINDOWS_DRIVE_PATH.test(slashNormalized)
+  ) {
+    throw new Error(`Unsafe canvas path: ${filePath}`);
+  }
+
+  const segments = slashNormalized
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.');
+
+  if (segments.length === 0 || segments.some((segment) => segment === '..')) {
+    throw new Error(`Unsafe canvas path: ${filePath}`);
+  }
+
+  return segments.join('/');
 }
 
 function getExtension(filePath: string) {

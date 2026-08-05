@@ -10,6 +10,8 @@
 /out/
 /build
 *.tsbuildinfo
+.vaultpress-stage-*
+.vaultpress-backup-*
 
 # misc
 .DS_Store
