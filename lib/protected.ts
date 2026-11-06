@@ -2,6 +2,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Node, Root } from "fumadocs-core/page-tree";
 import { cookies } from "next/headers";
 import { resolvePage, source } from "@/lib/source";
+import { pageRequiresAuth } from "@/lib/protected-policy";
+
+export { isPageProtected, pageRequiresAuth } from "@/lib/protected-policy";
 
 export const PROTECTED_COOKIE = "vaultpress-protected";
 
@@ -9,14 +12,6 @@ type SourcePage = ReturnType<typeof source.getPages>[number];
 
 export function isProtectionEnabled() {
   return Boolean(process.env.SITE_PROTECT_PASSWORD?.trim());
-}
-
-export function isPageProtected(page: { data: { protected?: boolean } }) {
-  return page.data.protected === true;
-}
-
-export function pageRequiresAuth(page: { data: { protected?: boolean } }) {
-  return isPageProtected(page) && isProtectionEnabled();
 }
 
 export function getAuthToken() {
