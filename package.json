@@ -45,7 +45,7 @@
     "fumadocs-ui": "16.9.3",
     "katex": "^0.17.0",
     "lucide-react": "^1.17.0",
-    "next": "16.2.7",
+    "next": "16.4.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-force-graph-2d": "^1.29.1",

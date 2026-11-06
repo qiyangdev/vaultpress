@@ -10,7 +10,24 @@ import {
   resolvePathWithin,
 } from '../lib/safe-path.ts';
 import { getAuthorizedSearchUrl } from '../lib/search-access.ts';
+import { pageRequiresAuth } from '../lib/protected-policy.ts';
 import { buildWikilinkIndex } from '../lib/wikilink-index.ts';
+
+test('protected pages require access regardless of password configuration', () => {
+  const previousPassword = process.env.SITE_PROTECT_PASSWORD;
+  try {
+    for (const password of [undefined, '', 'test-password']) {
+      if (password === undefined) delete process.env.SITE_PROTECT_PASSWORD;
+      else process.env.SITE_PROTECT_PASSWORD = password;
+      assert.equal(pageRequiresAuth({ data: { protected: true } }), true);
+      assert.equal(pageRequiresAuth({ data: { protected: false } }), false);
+      assert.equal(pageRequiresAuth({ data: {} }), false);
+    }
+  } finally {
+    if (previousPassword === undefined) delete process.env.SITE_PROTECT_PASSWORD;
+    else process.env.SITE_PROTECT_PASSWORD = previousPassword;
+  }
+});
 
 test('unauthenticated search cannot select the protected index', () => {
   const url = getAuthorizedSearchUrl(
